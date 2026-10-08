@@ -1,0 +1,28 @@
+site_name: Documentação - API de Cartões
+site_description: MVP de emissão de cartões e autorização de transações
+
+theme:
+  name: material
+  language: pt-BR
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Início: index.md
+  - Arquitetura:
+      - Contexto do Sistema: architecture/system-context.md
+      - Modelo de Dados: architecture/data-model.md
+      - Fluxos e Concorrência: architecture/flows.md
+  - Regras de Negócio: business-logic/rules.md
+  - API & Operações: api/endpoints.md
+  - ADRs:
+      - "0001: Decisões Iniciais": adrs/0001-decisoes-iniciais.md
