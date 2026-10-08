@@ -1,1 +1,5 @@
-"""Pydantic schemas will be added in a later iteration."""
+"""Pydantic schemas for API contracts."""
+
+from app.schemas.customer import CustomerCreate, CustomerResponse
+
+__all__ = ["CustomerCreate", "CustomerResponse"]

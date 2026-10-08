@@ -1,1 +1,5 @@
-"""Persistence repositories will be added in a later iteration."""
+"""Persistence repositories."""
+
+from app.repositories.customer import CustomerRepository
+
+__all__ = ["CustomerRepository"]

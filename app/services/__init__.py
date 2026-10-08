@@ -1,1 +1,5 @@
-"""Application services will be added in a later iteration."""
+"""Application services."""
+
+from app.services.customer import CustomerService
+
+__all__ = ["CustomerService"]
