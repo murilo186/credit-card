@@ -6,8 +6,11 @@
 venv
 env
 __pycache__
+*.py[cod]
 .pytest_cache
 .ruff_cache
+.mypy_cache
+.tox
 .coverage
 coverage.xml
 htmlcov
@@ -17,3 +20,6 @@ dist
 .vscode
 .idea
 site
+.DS_Store
+*.pem
+*.key
