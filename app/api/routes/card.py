@@ -1,24 +1,17 @@
 import uuid
-from typing import Annotated, NoReturn
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
 from app.repositories.card import CardRepository
 from app.repositories.customer import CustomerRepository
 from app.schemas.card import CardCreate, CardResponse
-from app.services.card import CardNotFoundError, CardService, CustomerNotFoundError
+from app.services.card import CardService
 
 router = APIRouter(prefix="/api/v1", tags=["Cartões"])
 card_service = CardService(CardRepository(), CustomerRepository())
-
-
-def raise_card_not_found() -> NoReturn:
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="Cartão não encontrado.",
-    )
 
 
 @router.post(
@@ -36,13 +29,7 @@ def create_card(
     card_data: CardCreate,
     db: Annotated[Session, Depends(get_db)],
 ) -> CardResponse:
-    try:
-        return card_service.create_card(db, customer_id, card_data)
-    except CustomerNotFoundError as error:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cliente não encontrado.",
-        ) from error
+    return card_service.create_card(db, customer_id, card_data)
 
 
 @router.get(
@@ -55,10 +42,7 @@ def get_card(
     card_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
 ) -> CardResponse:
-    try:
-        return card_service.get_card(db, card_id)
-    except CardNotFoundError:
-        raise_card_not_found()
+    return card_service.get_card(db, card_id)
 
 
 @router.post(
@@ -74,10 +58,7 @@ def block_card(
     card_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
 ) -> CardResponse:
-    try:
-        return card_service.block_card(db, card_id)
-    except CardNotFoundError:
-        raise_card_not_found()
+    return card_service.block_card(db, card_id)
 
 
 @router.post(
@@ -93,7 +74,4 @@ def unblock_card(
     card_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
 ) -> CardResponse:
-    try:
-        return card_service.unblock_card(db, card_id)
-    except CardNotFoundError:
-        raise_card_not_found()
+    return card_service.unblock_card(db, card_id)

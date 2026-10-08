@@ -4,31 +4,17 @@ from datetime import UTC, datetime
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import (
+    CardNotFoundError,
+    IdempotencyConflictError,
+    TransactionNotCancelableError,
+    TransactionNotFoundError,
+)
 from app.models.card import Card
 from app.models.enums import CardStatus, DeclineReason, TransactionStatus
 from app.models.transaction import Transaction
 from app.repositories.transaction import TransactionRepository
 from app.schemas.transaction import TransactionCreate
-
-
-class TransactionCardNotFoundError(Exception):
-    """Raised when a requested card does not exist."""
-
-
-class TransactionIdempotencyConflictError(Exception):
-    """Raised when an idempotency key is reused with another payload."""
-
-
-class TransactionNotFoundError(Exception):
-    """Raised when a requested transaction does not exist."""
-
-
-class TransactionNotCancelableError(Exception):
-    """Raised when a transaction is not approved and cannot be cancelled."""
-
-
-class LimitRestorationError(Exception):
-    """Raised when restoring a limit would exceed the configured total."""
 
 
 class TransactionService:
@@ -49,7 +35,7 @@ class TransactionService:
             with db.begin():
                 card = self._repository.get_card_for_update(db, card_id)
                 if card is None:
-                    raise TransactionCardNotFoundError
+                    raise CardNotFoundError
 
                 existing_transaction = self._repository.get_by_card_and_idempotency_key(
                     db,
@@ -101,7 +87,7 @@ class TransactionService:
         page_size: int,
     ) -> list[Transaction]:
         if self._repository.get_card(db, card_id) is None:
-            raise TransactionCardNotFoundError
+            raise CardNotFoundError
 
         return self._repository.list_by_card(
             db,
@@ -128,7 +114,7 @@ class TransactionService:
             with db.begin():
                 card = self._repository.get_card_for_update(db, card_id)
                 if card is None:
-                    raise TransactionCardNotFoundError
+                    raise CardNotFoundError
 
                 transaction = self._repository.get_by_id_for_update(db, transaction_id)
                 if transaction is None:
@@ -138,7 +124,7 @@ class TransactionService:
 
                 restored_limit = card.available_limit_cents + transaction.amount_cents
                 if restored_limit > card.total_limit_cents:
-                    raise LimitRestorationError
+                    raise TransactionNotCancelableError
 
                 transaction.status = TransactionStatus.CANCELLED
                 transaction.cancelled_at = datetime.now(UTC)
@@ -182,7 +168,7 @@ class TransactionService:
             existing_transaction.amount_cents != transaction_data.amount_cents
             or existing_transaction.merchant != transaction_data.merchant
         ):
-            raise TransactionIdempotencyConflictError
+            raise IdempotencyConflictError
 
     @staticmethod
     def _is_idempotency_key_violation(error: IntegrityError) -> bool:

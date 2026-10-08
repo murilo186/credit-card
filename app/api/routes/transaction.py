@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
@@ -11,14 +11,7 @@ from app.schemas.transaction import (
     TransactionPage,
     TransactionResponse,
 )
-from app.services.transaction import (
-    LimitRestorationError,
-    TransactionCardNotFoundError,
-    TransactionIdempotencyConflictError,
-    TransactionNotCancelableError,
-    TransactionNotFoundError,
-    TransactionService,
-)
+from app.services.transaction import TransactionService
 
 router = APIRouter(prefix="/api/v1", tags=["Transações"])
 transaction_service = TransactionService(TransactionRepository())
@@ -40,23 +33,12 @@ def authorize_transaction(
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
     db: Annotated[Session, Depends(get_db)],
 ) -> TransactionResponse:
-    try:
-        return transaction_service.authorize_transaction(
-            db,
-            card_id,
-            transaction_data,
-            idempotency_key,
-        )
-    except TransactionCardNotFoundError as error:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cartão não encontrado.",
-        ) from error
-    except TransactionIdempotencyConflictError as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="A Idempotency-Key foi reutilizada com outro payload.",
-        ) from error
+    return transaction_service.authorize_transaction(
+        db,
+        card_id,
+        transaction_data,
+        idempotency_key,
+    )
 
 
 @router.get(
@@ -74,19 +56,13 @@ def list_transactions(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> TransactionPage:
-    try:
-        transactions = transaction_service.list_transactions(
-            db,
-            card_id,
-            page,
-            page_size,
-        )
-        return TransactionPage(items=transactions, page=page, page_size=page_size)
-    except TransactionCardNotFoundError as error:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cartão não encontrado.",
-        ) from error
+    transactions = transaction_service.list_transactions(
+        db,
+        card_id,
+        page,
+        page_size,
+    )
+    return TransactionPage(items=transactions, page=page, page_size=page_size)
 
 
 @router.post(
@@ -102,15 +78,4 @@ def cancel_transaction(
     transaction_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
 ) -> TransactionResponse:
-    try:
-        return transaction_service.cancel_transaction(db, transaction_id)
-    except TransactionNotFoundError as error:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Transação não encontrada.",
-        ) from error
-    except (TransactionNotCancelableError, LimitRestorationError) as error:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="A transação não pode ser cancelada.",
-        ) from error
+    return transaction_service.cancel_transaction(db, transaction_id)

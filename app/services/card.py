@@ -2,19 +2,12 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import CardNotFoundError, CustomerNotFoundError
 from app.models.card import Card
 from app.models.enums import CardStatus
 from app.repositories.card import CardRepository
 from app.repositories.customer import CustomerRepository
 from app.schemas.card import CardCreate
-
-
-class CustomerNotFoundError(Exception):
-    """Raised when a requested customer does not exist."""
-
-
-class CardNotFoundError(Exception):
-    """Raised when a requested card does not exist."""
 
 
 class CardService:
