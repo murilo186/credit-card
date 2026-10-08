@@ -11,10 +11,32 @@ services:
       - .:/app
     ports:
       - "8001:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
     command: >
       sh -c 'if [ "$$APP_ENV" = "development" ]; then
       uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload;
       else uvicorn app.main:app --host 0.0.0.0 --port 8000; fi'
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: card_limit
+      POSTGRES_USER: card_user
+      POSTGRES_PASSWORD: example_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - backend
 
   docs:
     image: squidfunk/mkdocs-material:latest
@@ -25,3 +47,10 @@ services:
     ports:
       - "8000:8000"
     command: serve --dev-addr=0.0.0.0:8000
+
+volumes:
+  postgres_data:
+
+networks:
+  backend:
+    internal: true
