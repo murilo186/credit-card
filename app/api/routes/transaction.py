@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.repositories.transaction import TransactionRepository
 from app.schemas.transaction import TransactionCreate, TransactionResponse
-from app.services.transaction import TransactionCardNotFoundError, TransactionService
+from app.services.transaction import (
+    TransactionCardNotFoundError,
+    TransactionIdempotencyConflictError,
+    TransactionService,
+)
 
 router = APIRouter(prefix="/api/v1/cards", tags=["Transações"])
 transaction_service = TransactionService(TransactionRepository())
@@ -40,4 +44,9 @@ def authorize_transaction(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Cartão não encontrado.",
+        ) from error
+    except TransactionIdempotencyConflictError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A Idempotency-Key foi reutilizada com outro payload.",
         ) from error
