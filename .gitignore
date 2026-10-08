@@ -1,0 +1,29 @@
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# Python environments and artifacts
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+build/
+dist/
+
+# Tests, linters and coverage
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+.DS_Store

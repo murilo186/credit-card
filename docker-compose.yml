@@ -1,0 +1,27 @@
+services:
+  api:
+    build:
+      context: .
+    environment:
+      APP_NAME: ${APP_NAME:-Card Limit API}
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://card_user:example_password@db:5432/card_limit}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - .:/app
+    ports:
+      - "8001:8000"
+    command: >
+      sh -c 'if [ "$$APP_ENV" = "development" ]; then
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload;
+      else uvicorn app.main:app --host 0.0.0.0 --port 8000; fi'
+
+  docs:
+    image: squidfunk/mkdocs-material:latest
+    profiles: ["docs"]
+    working_dir: /docs
+    volumes:
+      - .:/docs
+    ports:
+      - "8000:8000"
+    command: serve --dev-addr=0.0.0.0:8000

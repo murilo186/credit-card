@@ -32,11 +32,10 @@ docker compose up --build
 
 ## Visualizando a documentação
 
-Instale o Material for MkDocs e inicie o servidor local:
+Inicie o servidor do Material for MkDocs pelo Docker Compose:
 
 ```bash
-pip install mkdocs-material
-mkdocs serve
+docker compose --profile docs up docs
 ```
 
 A documentação ficará disponível em:
