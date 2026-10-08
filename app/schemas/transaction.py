@@ -30,3 +30,9 @@ class TransactionResponse(BaseModel):
     decline_reason: DeclineReason | None
     created_at: datetime
     cancelled_at: datetime | None
+
+
+class TransactionPage(BaseModel):
+    items: list[TransactionResponse]
+    page: int
+    page_size: int

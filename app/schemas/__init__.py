@@ -2,7 +2,11 @@
 
 from app.schemas.card import CardCreate, CardResponse
 from app.schemas.customer import CustomerCreate, CustomerResponse
-from app.schemas.transaction import TransactionCreate, TransactionResponse
+from app.schemas.transaction import (
+    TransactionCreate,
+    TransactionPage,
+    TransactionResponse,
+)
 
 __all__ = [
     "CardCreate",
@@ -10,5 +14,6 @@ __all__ = [
     "CustomerCreate",
     "CustomerResponse",
     "TransactionCreate",
+    "TransactionPage",
     "TransactionResponse",
 ]

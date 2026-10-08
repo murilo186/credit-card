@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -16,6 +17,18 @@ class TransactionCardNotFoundError(Exception):
 
 class TransactionIdempotencyConflictError(Exception):
     """Raised when an idempotency key is reused with another payload."""
+
+
+class TransactionNotFoundError(Exception):
+    """Raised when a requested transaction does not exist."""
+
+
+class TransactionNotCancelableError(Exception):
+    """Raised when a transaction is not approved and cannot be cancelled."""
+
+
+class LimitRestorationError(Exception):
+    """Raised when restoring a limit would exceed the configured total."""
 
 
 class TransactionService:
@@ -76,6 +89,63 @@ class TransactionService:
             self._ensure_matching_payload(existing_transaction, transaction_data)
             db.refresh(existing_transaction)
             return existing_transaction
+        except Exception:
+            db.rollback()
+            raise
+
+    def list_transactions(
+        self,
+        db: Session,
+        card_id: uuid.UUID,
+        page: int,
+        page_size: int,
+    ) -> list[Transaction]:
+        if self._repository.get_card(db, card_id) is None:
+            raise TransactionCardNotFoundError
+
+        return self._repository.list_by_card(
+            db,
+            card_id,
+            offset=(page - 1) * page_size,
+            limit=page_size,
+        )
+
+    def cancel_transaction(
+        self,
+        db: Session,
+        transaction_id: uuid.UUID,
+    ) -> Transaction:
+        """Cancel an approved transaction and restore its limit atomically."""
+        initial_transaction = self._repository.get_by_id(db, transaction_id)
+        if initial_transaction is None:
+            db.rollback()
+            raise TransactionNotFoundError
+
+        card_id = initial_transaction.card_id
+        db.rollback()
+
+        try:
+            with db.begin():
+                card = self._repository.get_card_for_update(db, card_id)
+                if card is None:
+                    raise TransactionCardNotFoundError
+
+                transaction = self._repository.get_by_id_for_update(db, transaction_id)
+                if transaction is None:
+                    raise TransactionNotFoundError
+                if transaction.status is not TransactionStatus.APPROVED:
+                    raise TransactionNotCancelableError
+
+                restored_limit = card.available_limit_cents + transaction.amount_cents
+                if restored_limit > card.total_limit_cents:
+                    raise LimitRestorationError
+
+                transaction.status = TransactionStatus.CANCELLED
+                transaction.cancelled_at = datetime.now(UTC)
+                card.available_limit_cents = restored_limit
+
+            db.refresh(transaction)
+            return transaction
         except Exception:
             db.rollback()
             raise
