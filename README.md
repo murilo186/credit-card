@@ -106,6 +106,53 @@ O site fica disponível em <http://127.0.0.1:8000>. Encerre com `Ctrl+C` ou exec
 Consulte a [documentação completa](docs/index.md) para arquitetura, modelo de dados,
 fluxos, regras de negócio e decisões arquiteturais.
 
+## Deploy demonstrável: AWS EC2 e CloudWatch
+
+> Status: publicado para fins de demonstração em uma instância AWS EC2.
+
+- Swagger/OpenAPI: <http://18.228.213.100/docs>
+- Health check: <http://18.228.213.100/health>
+
+O IP público pode mudar se a instância for parada e iniciada novamente. Os links
+acima representam o ambiente de demonstração enquanto a instância estiver ligada.
+
+### Arquitetura implantada
+
+```text
+Internet
+  |
+  | HTTP :80
+  v
+Nginx (EC2)
+  |
+  | 127.0.0.1:8000
+  v
+FastAPI + Uvicorn (container Docker)
+  |
+  | rede Docker
+  v
+PostgreSQL (container Docker, sem porta pública)
+
+Logs dos containers + métricas de memória/disco
+  |
+  v
+Amazon CloudWatch
+```
+
+O Security Group da instância permite HTTP (`80`) para acesso à demonstração e
+SSH (`22`) somente para o IP administrativo e o EC2 Instance Connect. As portas
+`8000`, `8001` e `5432` não são abertas publicamente.
+
+O CloudWatch Agent coleta logs JSON dos containers no grupo
+`/credit-card/docker`, com retenção de sete dias, além de métricas de memória e
+disco no namespace `CWAgent`. Não há credenciais AWS no repositório: a EC2 usa
+uma IAM Role com a política `CloudWatchAgentServerPolicy`.
+
+### Evidências de observabilidade
+
+<!-- observability-screenshot: cloudwatch-logs.png -->
+<!-- observability-screenshot: cloudwatch-metrics.png -->
+
 ## Imagem de produção e EC2
 
 O `Dockerfile` possui dois targets:
@@ -114,46 +161,45 @@ O `Dockerfile` possui dois targets:
 - `production`: somente dependências de execução, sem bind mount e com usuário não
   privilegiado `app`.
 
-Para simular a configuração de produção localmente, use a sobreposição:
+Para reproduzir a configuração de produção localmente ou em uma EC2, use a
+sobreposição:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build api
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d db
 docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps api alembic upgrade head
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d api
 ```
 
-Nesse modo, a API é publicada apenas em `127.0.0.1:8001`; o PostgreSQL continua sem
-porta pública. Em uma EC2, um Nginx futuro deve receber tráfego externo e encaminhá-lo
-para essa porta local. O Uvicorn recebe `SIGTERM`, tem até 25 segundos para encerrar
+Nesse modo, a API é publicada apenas em `127.0.0.1:8000`; o PostgreSQL continua sem
+porta pública. Na EC2, o Nginx recebe tráfego externo na porta `80` e o encaminha para
+essa porta local. O Uvicorn recebe `SIGTERM`, tem até 25 segundos para encerrar
 graciosamente e o Compose reserva 30 segundos antes de interrompê-lo à força.
 
-### Roteiro manual para futura EC2
+### Atualização manual da EC2
 
-Este roteiro é manual e não cria recursos AWS, não registra domínio e não gera custo
-automaticamente.
+`git pull` baixa o código, mas não reinicia a imagem que está em execução. Após
+enviar uma versão revisada ao GitHub, atualize a instância manualmente:
 
-1. Crie uma instância EC2 Linux com tamanho compatível com o MVP e armazenamento
-   persistente suficiente para o volume PostgreSQL.
-2. Crie um Security Group permitindo SSH (`22`) apenas do seu IP administrativo.
-   Enquanto não houver Nginx/HTTPS, não exponha a API ao público. Quando Nginx estiver
-   configurado, permita somente `80` e `443` conforme a necessidade. Nunca abra `5432`.
-3. Instale Docker Engine e o plugin Docker Compose seguindo a documentação da
-   distribuição escolhida. Adicione o usuário operacional ao grupo Docker com cuidado
-   e valide `docker compose version`.
-4. Clone o repositório e crie `.env` com permissões restritas, por exemplo
-   `chmod 600 .env`. Use senha forte e exclusiva para `POSTGRES_PASSWORD`; mantenha
-   `DATABASE_URL` coerente com ela.
-5. Construa e suba os containers com a sobreposição de produção mostrada acima.
-   Execute `alembic upgrade head` dentro do container `api` antes de liberar tráfego.
-6. Em etapa futura, configure Nginx como proxy reverso para `127.0.0.1:8001`, defina
-   timeouts apropriados e habilite HTTPS com certificados válidos. Não exponha Uvicorn
-   nem PostgreSQL diretamente.
-7. Envie os logs JSON do container `api` para o CloudWatch usando um agente ou driver
-   de logs configurado fora do repositório. Não envie `.env` nem dados sensíveis.
-8. Configure AWS Budgets, alertas de custo e alarmes de utilização antes de manter a
-   instância ligada. Revise volumes, snapshots, logs e regras do Security Group.
+```bash
+cd ~/credit-card
+git pull --ff-only
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build api
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate api
+curl http://127.0.0.1/health
+```
 
-A implantação EC2 inicial compartilha aplicação e banco na mesma máquina, conforme o
-ADR 0001. É adequada somente ao propósito educacional e deve evoluir para controles
-adicionais e banco gerenciado caso os requisitos aumentem.
+Quando houver uma nova migração Alembic, execute antes de recriar a API:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps api alembic upgrade head
+```
+
+Alterações exclusivamente em `README.md` ou `docs/` não exigem novo deploy.
+
+### Limites do ambiente demonstrável
+
+O ambiente compartilha aplicação e banco na mesma EC2 e utiliza HTTP sem domínio ou
+TLS. Essa escolha é intencional para um MVP educacional demonstrável. Em um cenário
+real, a evolução incluiria HTTPS, domínio, banco gerenciado, backup, alertas e
+segregação adicional de rede.

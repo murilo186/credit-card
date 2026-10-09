@@ -8,8 +8,9 @@ services:
       APP_ENV: production
     user: app
     volumes: !reset []
-    ports: !reset
-      - "127.0.0.1:8001:8000"
+    # Substitui a porta de desenvolvimento (8001) pela porta privada usada pelo Nginx.
+    ports: !override
+      - "127.0.0.1:8000:8000"
     command:
       [
         "uvicorn",
@@ -24,3 +25,9 @@ services:
 
   docs:
     profiles: ["docs"]
+
+# Em produção o Nginx instalado na EC2 alcança a API pela porta publicada em
+# loopback. O PostgreSQL permanece sem porta publicada.
+networks:
+  backend:
+    internal: false
